@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 这是一个 Python 脚本，用于将指定文件夹中的 3D 模型批量转换为点云数据，
 按指定点间距采样，输出为TXT格式，并保存到指定输出文件夹。
@@ -29,8 +30,8 @@ def convert_model_to_pointcloud_by_distance(model_path, target_distance=0.1, max
         if not isinstance(mesh, trimesh.Trimesh):
             raise ValueError(f"加载的对象不是一个有效的网格。")
 
-        # 初始采样大量点
-        initial_sample_count = min(500000, int(mesh.area / (target_distance * target_distance) * 10))
+        # 初始采样（降低倍数以减少内存占用）
+        initial_sample_count = min(200000, int(mesh.area / (target_distance * target_distance) * 3))
         print(f"正在从模型表面初步采样 {initial_sample_count} 个点...")
         initial_points = mesh.sample(count=initial_sample_count)
 
@@ -39,31 +40,31 @@ def convert_model_to_pointcloud_by_distance(model_path, target_distance=0.1, max
 
         print(f"初步采样完成，共 {len(initial_points)} 个点。开始按距离过滤...")
 
-        # 使用泊松盘采样算法的思想进行点过滤
-        selected_points = []
-        remaining_points = initial_points.copy()
+        # 优化内存：预分配结果数组，避免数组复制
+        mask = np.ones(len(initial_points), dtype=bool)
+        max_result = min(len(initial_points), max_iterations)
+        selected_points = np.empty((max_result, 3), dtype=np.float64)
+        count = 0
 
         iteration = 0
-        while len(remaining_points) > 0 and len(selected_points) < max_iterations:
+        while np.any(mask) and count < max_result:
             iteration += 1
             if iteration % 1000 == 0:
-                print(f"正在进行第 {iteration} 次迭代，已选中 {len(selected_points)} 个点...")
+                print(f"正在进行第 {iteration} 次迭代，已选中 {count} 个点...")
 
-            # 选取第一个剩余点作为新点
-            new_point = remaining_points[0]
-            selected_points.append(new_point)
+            # 找到第一个未被选中的点
+            idx = np.where(mask)[0][0]
+            selected_points[count] = initial_points[idx]
+            count += 1
 
-            # 计算所有剩余点到新点的距离
-            distances = np.linalg.norm(remaining_points - new_point, axis=1)
+            # 直接计算距离，避免复制数组
+            distances = np.linalg.norm(initial_points[mask] - initial_points[idx], axis=1)
 
-            # 移除距离小于目标距离的点
-            mask = distances >= target_distance
-            remaining_points = remaining_points[mask]
+            # 更新掩码
+            valid_indices = np.where(mask)[0]
+            mask[valid_indices[distances < target_distance]] = False
 
-            if len(remaining_points) == 0:
-                break
-
-        selected_points = np.array(selected_points)
+        selected_points = selected_points[:count]
         print(f"按距离 {target_distance} 采样完成，共生成 {len(selected_points)} 个点。")
 
         return selected_points

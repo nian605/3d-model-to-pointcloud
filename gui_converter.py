@@ -20,6 +20,7 @@ class PointCloudConverterApp:
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.target_distance = tk.DoubleVar(value=0.1)
         self.current_model_file = None
+        self.output_folder = os.path.join(self.script_dir, "output")
 
         # 创建界面元素
         self.create_widgets()
@@ -27,7 +28,7 @@ class PointCloudConverterApp:
     def create_widgets(self):
         # 主框架
         main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        main_frame.grid(row=0, column=0, sticky="wens")
 
         # 模型文件选择
         ttk.Label(main_frame, text="选择模型:").grid(row=0, column=0, sticky=tk.W, pady=5)
@@ -35,39 +36,45 @@ class PointCloudConverterApp:
         self.model_label = ttk.Label(main_frame, text="未选择", foreground="gray")
         self.model_label.grid(row=0, column=2, sticky=tk.W, padx=5, pady=5)
 
+        # 输出文件夹选择
+        ttk.Label(main_frame, text="输出文件夹:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Button(main_frame, text="选择输出文件夹", command=self.browse_output).grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        self.output_label = ttk.Label(main_frame, text=self.output_folder, foreground="blue")
+        self.output_label.grid(row=1, column=2, sticky=tk.W, padx=5, pady=5)
+
         # 点间距设置
-        ttk.Label(main_frame, text="目标点间距:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="目标点间距:").grid(row=2, column=0, sticky=tk.W, pady=5)
         distance_spinbox = ttk.Spinbox(main_frame, from_=0.01, to=10.0, increment=0.01,
                                        textvariable=self.target_distance, width=10)
-        distance_spinbox.grid(row=1, column=1, sticky=tk.W, padx=5, pady=5)
+        distance_spinbox.grid(row=2, column=1, sticky=tk.W, padx=5, pady=5)
 
         # 开始转换按钮
         self.start_button = ttk.Button(main_frame, text="开始转换", command=self.start_conversion)
-        self.start_button.grid(row=2, column=0, columnspan=3, pady=20)
+        self.start_button.grid(row=3, column=0, columnspan=3, pady=20)
 
         # 进度条
-        ttk.Label(main_frame, text="处理进度:").grid(row=3, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="处理进度:").grid(row=4, column=0, sticky=tk.W, pady=5)
         self.progress = ttk.Progressbar(main_frame, orient="horizontal", length=500, mode="determinate")
-        self.progress.grid(row=3, column=1, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        self.progress.grid(row=4, column=1, columnspan=2, pady=10, sticky="we")
 
         self.progress_label = ttk.Label(main_frame, text="0%")
-        self.progress_label.grid(row=4, column=1, sticky=tk.W, padx=5)
+        self.progress_label.grid(row=5, column=1, sticky=tk.W, padx=5)
 
         # 日志文本框
-        ttk.Label(main_frame, text="处理日志:").grid(row=5, column=0, sticky=(tk.W, tk.N))
+        ttk.Label(main_frame, text="处理日志:").grid(row=6, column=0, sticky="wn")
         log_frame = ttk.Frame(main_frame)
-        log_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        log_frame.grid(row=7, column=0, columnspan=3, sticky="wens", pady=5)
 
         self.log_text = tk.Text(log_frame, wrap=tk.WORD, state=tk.DISABLED, height=15)
         scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scrollbar.set)
 
-        self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.log_text.grid(row=0, column=0, sticky="wens")
+        scrollbar.grid(row=0, column=1, sticky="ns")
 
         # 配置网格权重
         main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(6, weight=1)
+        main_frame.rowconfigure(7, weight=1)
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         self.root.columnconfigure(0, weight=1)
@@ -83,6 +90,12 @@ class PointCloudConverterApp:
         if file:
             self.current_model_file = file
             self.model_label.config(text=os.path.basename(file), foreground="black")
+
+    def browse_output(self):
+        folder = filedialog.askdirectory(title="选择输出文件夹", initialdir=self.output_folder)
+        if folder:
+            self.output_folder = folder
+            self.output_label.config(text=folder)
 
     def start_conversion(self):
         if not self.current_model_file:
@@ -106,7 +119,7 @@ class PointCloudConverterApp:
 
     def run_conversion(self):
         model_path = self.current_model_file
-        output_folder = os.path.join(self.script_dir, "output")
+        output_folder = self.output_folder
         target_distance = self.target_distance.get()
 
         try:
@@ -114,7 +127,7 @@ class PointCloudConverterApp:
                 os.makedirs(output_folder, exist_ok=True)
                 self.update_log(f"已创建输出文件夹: {output_folder}\n")
 
-            self.update_log(f"正在处理: {os.path.basename(model_path)}\n")
+            self.update_log(f"正在处理: {os.path.basename(model_path) if model_path else ''}\n")
             self.update_log(f"输出文件夹: {output_folder}\n")
 
             # 转换模型为点云
@@ -122,7 +135,7 @@ class PointCloudConverterApp:
 
             if point_cloud_data is not None:
                 # 生成输出文件路径
-                base_name = os.path.splitext(os.path.basename(model_path))[0]
+                base_name = os.path.splitext(os.path.basename(model_path) if model_path else '')[0]
                 output_file_path = os.path.join(output_folder, f"{base_name}_pointcloud.txt")
 
                 # 保存点云
@@ -131,7 +144,7 @@ class PointCloudConverterApp:
                 self.update_log(f"已保存至: {output_file_path}\n")
                 self.update_log(f"\n转换完成！可以继续选择下一个模型。\n")
             else:
-                self.update_log(f"处理失败: {os.path.basename(model_path)}\n")
+                self.update_log(f"处理失败: {os.path.basename(model_path) if model_path else ''}\n")
 
         except Exception as e:
             self.update_log(f"处理过程中发生错误: {str(e)}\n")
@@ -168,7 +181,7 @@ class PointCloudConverterApp:
 
             # 使用泊松盘采样算法的思想进行点过滤
             selected_points = []
-            remaining_points = initial_points.copy()
+            remaining_points = np.copy(initial_points)
 
             iteration = 0
             while len(remaining_points) > 0:
